@@ -120,7 +120,7 @@ def costruisci_tabella(
             key = (pr.foglio, pr.particella, anno)
             a: Aggregato | None = agg.get(key)
             if a and a.per_coltura_ca:
-                rec[f"colture_{anno}"] = a.testo()
+                rec[f"colture_{anno}"] = a.testo_plv()
                 trovata_almeno_uno = True
             else:
                 rec[f"colture_{anno}"] = ""

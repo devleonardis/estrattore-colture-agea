@@ -21,12 +21,78 @@ from matching import (
 import storage
 
 st.set_page_config(page_title="Estrattore Colture AGEA", layout="wide")
-st.title("Estrattore Colture da Fascicoli AGEA — POC")
+
+# Marcatore persistente (fuori dal progetto: sopravvive a un rebuild/pull e,
+# nell'app desktop, all'estrazione in una cartella temporanea diversa ad ogni
+# avvio) per mostrare il tutorial una sola volta, alla primissima apertura.
+TUTORIAL_MARKER = Path.home() / ".agea_estrattore" / "tutorial_visto"
+
+
+@st.dialog("Come funziona l'Estrattore Colture AGEA", width="large")
+def mostra_tutorial() -> None:
+    st.markdown(
+        """
+#### 1. Cosa caricare
+- **Particellare di progetto** (`.xlsx`): foglio, particella, superficie, intestatario.
+- **Fascicoli Aziendali AGEA** (`.pdf`): le ultime 3 annualità di ogni azienda
+  che possiede/conduce le particelle del progetto — carica pure tutti i PDF
+  che hai, anche di anni o aziende diverse, il tool prende solo quello che serve.
+
+#### 2. Cosa fa il tool
+Legge in ogni fascicolo la sezione *"Piano di coltivazione - Particelle
+catastali"*, somma le superfici per particella e anno, e incrocia il
+risultato con il particellare sulla coppia **Foglio + Particella**
+(elaborazione locale, nessun dato inviato altrove).
+
+#### 3. Cosa aspettarti in output
+Una tabella con una riga per particella del progetto e una colonna per
+ciascun anno trovato nei fascicoli caricati, es.:
+
+| foglio | particella | colture_2023 | colture_2024 | colture_2025 | stato |
+|---|---|---|---|---|---|
+| 64 | 37 | girasole 1.95 ha | girasole 1.95 ha | grano duro 2.20 ha | OK |
+
+- **stato = OK**: coltura trovata per tutti gli anni.
+- **stato = parziale**: manca qualche anno (fascicolo non caricato per
+  quell'annualità, o particella non dichiarata quell'anno).
+- **stato = particella non trovata nei fascicoli**: nessuno dei PDF caricati
+  dichiara quella particella — probabilmente manca il fascicolo di quel
+  proprietario/conduttore.
+
+Scarichi il risultato in Excel con il bottone in fondo alla pagina.
+
+#### 4. Se qualcosa non torna
+Il parser **non inventa mai un valore**: quando non riesce a leggere una riga
+in modo affidabile (es. una particella in conflitto tra più atti, per cui
+AGEA stesso non stampa la superficie), la salta e te lo scrive nella sezione
+**Avvisi**, con foglio/particella/coltura interessati — va controllata a mano
+sul fascicolo originale. Il dettaglio grezzo riga-per-riga (comprese le voci
+non agricole come tare e fabbricati, escluse dal risultato perché non
+producono PLV) resta consultabile in fondo, in *"Dettaglio record estratti"*.
+        """
+    )
+    if st.button("Ho capito, inizia", type="primary"):
+        st.rerun()
+
+
+col_title, col_info = st.columns([8, 1])
+with col_title:
+    st.title("Estrattore Colture da Fascicoli AGEA — POC")
+with col_info:
+    st.write("")  # allinea verticalmente il bottone al titolo
+    if st.button("ℹ️ Tutorial", use_container_width=True):
+        mostra_tutorial()
+
 st.caption(
     "Incrocia il particellare di progetto (Excel) con i Fascicoli Aziendali AGEA (PDF) "
     "e ricostruisce le colture per particella e per anno. Elaborazione locale, "
     "parser deterministico (nessun LLM)."
 )
+
+if not TUTORIAL_MARKER.exists():
+    TUTORIAL_MARKER.parent.mkdir(parents=True, exist_ok=True)
+    TUTORIAL_MARKER.write_text("1")
+    mostra_tutorial()
 
 RE_YEAR = re.compile(r"(20\d{2})")
 

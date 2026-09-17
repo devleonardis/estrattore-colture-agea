@@ -71,9 +71,12 @@ Excel `colture_per_particella.xlsx`:
 
 | riga_excel | foglio | particella | superficie_progetto | intestatario | colture_2023 | colture_2024 | colture_2025 | stato |
 
-Contenuto delle colonne `colture_<anno>`:
-`GIRASOLE 3,47,53 ha; USO NON AGRICOLO - TARE 0,18,44 ha` (superfici in
-`Ha,Aa,Ca`, colture ordinate per superficie decrescente).
+Contenuto delle colonne `colture_<anno>`: solo colture reali (niente tare,
+fabbricati, incolti, set-aside), ettari decimali a 2 cifre, formato pronto
+per il piano agronomico — es. `girasole 1.95 ha` oppure, con più colture
+nella stessa particella/anno, `grano duro 0.32 ha; orzo 0.15 ha`. Le voci non
+agricole e il dettaglio grezzo per-appezzamento restano visibili nell'app,
+sezione "Dettaglio record estratti (debug parser)".
 
 ## Limiti noti del parser
 

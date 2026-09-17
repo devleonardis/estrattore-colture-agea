@@ -59,6 +59,41 @@ NON_DETTAGLIO_CODES = {
     "650", "660", "690", "770", "780", "788", "156", "157",  # non agricolo/altro
 }
 
+# Codici "occupazione del suolo" che NON sono colture (non producono PLV):
+# tare, fabbricati, incolti, boschi, siepi, margini, canali, superfici
+# ritirate dalla produzione (set-aside). Esclusi dalla vista semplificata
+# "colture per PLV"; restano visibili nel dettaglio grezzo (debug).
+NON_COLTURA_CODES = {
+    "156", "157", "214", "650", "660", "690", "770", "780",
+    "785", "786", "788", "789", "791",
+}
+
+# Nomi semplificati (minuscolo, come nel formato di lavoro dello studio) per
+# i codici colturali osservati nei fascicoli reali. Un codice non presente
+# qui usa come fallback la descrizione AGEA in minuscolo (vedi nome_coltura_plv).
+CROP_NAME_MAP = {
+    "002": "grano duro",
+    "005": "girasole",
+    "420": "olivo",
+    "410": "vite",
+    "800": "erbaio",
+    "870": "orzo",
+    "020": "pisello",
+    "544": "cece",
+    "379": "trifoglio",
+    "065": "pascolo polifita",
+    "054": "pascolo arborato (tara 50%)",
+    "063": "pascolo polifita (roccia affiorante, tara 20%)",
+    "666": "seminativi (non specificata)",
+    "651": "colture arboree (non specificata)",
+}
+
+
+def nome_coltura_plv(code: str, desc: str) -> str:
+    if code in CROP_NAME_MAP:
+        return CROP_NAME_MAP[code]
+    return desc.lower()
+
 # Frasi che AGEA stampa quando un appezzamento e' oggetto di un conflitto tra
 # piu' atti (domande sovrapposte) e per questo la superficie coltivata NON
 # viene riportata nel fascicolo stesso (non e' un mancato riconoscimento del
@@ -353,14 +388,30 @@ class Aggregato:
     particella: int
     anno: int
     per_coltura_ca: dict[str, int] = field(default_factory=dict)
+    per_codice_ca: dict[str, int] = field(default_factory=dict)
     files: set[str] = field(default_factory=set)
 
     def testo(self) -> str:
+        """Vista grezza: tutte le voci (colture + tare/fabbricati/ecc.), formato Ha,Aa,Ca."""
         parti = [
             f"{col} {ca_to_str(ca)} ha"
             for col, ca in sorted(self.per_coltura_ca.items(), key=lambda t: -t[1])
         ]
         return "; ".join(parti)
+
+    def testo_plv(self) -> str:
+        """Vista per PLV: solo colture reali, ettari decimali (2 cifre), niente
+        tare/fabbricati/incolti/set-aside — formato pronto per il piano agronomico.
+        Residui che arrotondano a 0.00 ha vengono omessi (rumore di poligoni
+        marginali), a meno che siano l'unica voce disponibile."""
+        voci = sorted(self.per_codice_ca.items(), key=lambda t: -t[1])
+        rilevanti = [(n, c) for n, c in voci if ca_to_ha_float(c) >= 0.005]
+        if not rilevanti and voci:
+            rilevanti = voci[:1]
+        return "; ".join(f"{nome} {ca_to_ha_float(ca):.2f} ha" for nome, ca in rilevanti)
+
+    def ha_coltura(self) -> bool:
+        return bool(self.per_codice_ca)
 
 
 def aggrega(
@@ -405,6 +456,9 @@ def aggrega(
             a.per_coltura_ca[rec.coltura] = (
                 a.per_coltura_ca.get(rec.coltura, 0) + rec.superficie_ca
             )
+            if rec.coltura_code not in NON_COLTURA_CODES:
+                nome = nome_coltura_plv(rec.coltura_code, rec.coltura)
+                a.per_codice_ca[nome] = a.per_codice_ca.get(nome, 0) + rec.superficie_ca
             a.files.add(rec.file)
         agg[key] = a
     return agg, warnings
