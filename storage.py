@@ -16,10 +16,22 @@ from pathlib import Path
 
 from agea_parser import ColturaRecord, ParseResult
 
-DB_PATH = Path(__file__).with_name("agea_cache.sqlite")
+# NON accanto a __file__: nell'app impacchettata (PyInstaller) i sorgenti
+# vivono in una cartella temporanea di sola lettura (e macOS, per un'app
+# scaricata non firmata, la esegue pure da un percorso "translocato"
+# diverso ad ogni avvio) — scriverci fallisce con
+# "sqlite3.OperationalError: unable to open database file". Usiamo una
+# cartella nella home dell'utente, stabile e scrivibile sia da sorgente sia
+# da eseguibile, condivisa con il marcatore del tutorial (vedi app.py).
+DB_PATH = Path.home() / ".agea_estrattore" / "agea_cache.sqlite"
+
+
+def _ensure_dir() -> None:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def _conn() -> sqlite3.Connection:
+    _ensure_dir()
     c = sqlite3.connect(DB_PATH)
     c.execute(
         """CREATE TABLE IF NOT EXISTS parse_cache (
