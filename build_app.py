@@ -44,8 +44,21 @@ def main() -> None:
         "--hidden-import", "agea_parser",
         "--hidden-import", "matching",
         "--hidden-import", "storage",
-        "desktop.py",
     ]
+    if platform.system() == "Windows":
+        # Su Windows pywebview usa il backend "edgechromium" (WebView2), che
+        # dialoga con le API .NET tramite pythonnet/clr_loader: se PyInstaller
+        # non impacchetta correttamente Python.Runtime.dll e i file satellite
+        # di pythonnet, all'avvio l'eseguibile fallisce con
+        # "RuntimeError: Failed to resolve Python.Runtime.Loader.Initialize"
+        # (osservato testando il .exe generato da una build precedente).
+        args += [
+            "--collect-all", "webview",
+            "--collect-all", "pythonnet",
+            "--collect-all", "clr_loader",
+            "--hidden-import", "webview.platforms.edgechromium",
+        ]
+    args.append("desktop.py")
     print(">", " ".join(args))
     subprocess.run(args, check=True)
     print(f"\nFatto. Output in dist/{NAME}/")

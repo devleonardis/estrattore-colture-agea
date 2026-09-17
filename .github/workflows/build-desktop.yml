@@ -22,6 +22,55 @@ jobs:
           python-version: "3.11"
       - run: pip install -r requirements.txt pywebview pyinstaller
       - run: python build_app.py
+
+      # Smoke test: lancia l'eseguibile appena creato e verifica che abbia
+      # davvero funzionato, non solo che il processo sia rimasto vivo — un
+      # crash con dialog di errore (--windowed) lascia il processo attivo in
+      # attesa che l'utente prema "Close", quindi un semplice controllo
+      # "processo in vita" non lo distinguerebbe da un avvio riuscito (bug
+      # gia' capitati: fitz mancante, sqlite non scrivibile, clr/pythonnet
+      # non risolto). I runner CI non hanno un display fisico ma ne emulano
+      # uno virtuale, sufficiente per questi controlli.
+      - name: smoke test (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          open dist/EstrattoreColtureAGEA.app
+          ok=""
+          for i in $(seq 1 15); do
+            port=$(ps aux | grep -o -- '--streamlit-server [0-9]*' | grep -o '[0-9]*' | head -1)
+            if [ -n "$port" ] && curl -s -o /dev/null -m 1 "http://127.0.0.1:$port"; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          pkill -f "EstrattoreColtureAGEA" || true
+          if [ -z "$ok" ]; then
+            echo "Il server interno non ha mai risposto entro 15s: l'app e' andata in errore all'avvio."
+            exit 1
+          fi
+          echo "OK: server interno raggiungibile sulla porta $port"
+
+      - name: smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\EstrattoreColtureAGEA\EstrattoreColtureAGEA.exe" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            Start-Sleep -Seconds 1
+            if ($p.HasExited) { break }
+            $p.Refresh()
+            if ($p.MainWindowTitle -eq "Estrattore Colture AGEA") { $ok = $true; break }
+          }
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          if (-not $ok) {
+            Write-Error "La finestra attesa ('Estrattore Colture AGEA') non e' comparsa entro 20s (titolo visto: '$($p.MainWindowTitle)', exited: $($p.HasExited)) — probabile crash all'avvio."
+            exit 1
+          }
+          Write-Host "OK: finestra dell'app comparsa correttamente"
+
       # su macOS PyInstaller produce sia dist/<NAME>/ (onedir) sia dist/<NAME>.app
       # (che lo incorpora): pubblichiamo solo il .app, che e' quello utilizzabile.
       - name: seleziona output da pubblicare
