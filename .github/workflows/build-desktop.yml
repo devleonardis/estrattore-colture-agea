@@ -1,0 +1,28 @@
+name: build-desktop
+
+# Costruisce gli eseguibili desktop (macOS .app, Windows .exe) usando i runner
+# gratuiti di GitHub Actions (nessun server/hosting a pagamento: la CI serve
+# solo a produrre il file da scaricare e usare offline). Si avvia a mano dalla
+# tab Actions del repo, o su ogni tag "v*".
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt pywebview pyinstaller
+      - run: python build_app.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EstrattoreColtureAGEA-${{ matrix.os }}
+          path: dist/*
