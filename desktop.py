@@ -18,6 +18,7 @@ gestito qui sotto in `_serve()`.
 """
 from __future__ import annotations
 
+import os
 import socket
 import subprocess
 import sys
@@ -26,6 +27,29 @@ import urllib.request
 from pathlib import Path
 
 FLAG_SERVE = "--streamlit-server"
+
+
+def _unblock_windows_dlls() -> None:
+    """Rimuove il flag "scaricato da Internet" (Mark-of-the-Web /
+    Zone.Identifier) dalle DLL incluse nell'app.
+
+    Un .exe scaricato come zip da un browser eredita questo flag su tutti i
+    file estratti; il bridge .NET usato da pywebview per aprire la finestra
+    (pythonnet) rifiuta di caricare Python.Runtime.dll se e' marcata cosi',
+    fallendo con "RuntimeError: Failed to resolve
+    Python.Runtime.Loader.Initialize" — errore confermato su un utente reale.
+    Va fatto PRIMA di importare `webview`. Se il file non e' marcato (utente
+    ha gia' sbloccato lo zip, o non e' Windows) non c'e' nulla da rimuovere:
+    l'unlink fallisce silenziosamente, non e' un problema.
+    """
+    if sys.platform != "win32" or not getattr(sys, "frozen", False):
+        return
+    base = Path(sys.executable).parent
+    for p in list(base.rglob("*.dll")) + list(base.rglob("*.exe")):
+        try:
+            os.remove(f"{p}:Zone.Identifier")
+        except OSError:
+            pass
 
 
 def _app_path() -> Path:
@@ -82,6 +106,7 @@ def main() -> None:
         _serve(int(sys.argv[2]))
         return
 
+    _unblock_windows_dlls()
     import webview
 
     port = _free_port()

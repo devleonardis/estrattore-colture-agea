@@ -193,6 +193,23 @@ volta) e Windows SmartScreen un avviso simile ("Ulteriori informazioni" →
 firmare il pacchetto (Apple Developer $99/anno, certificato di code-signing
 Windows) evita l'avviso ma non è necessario per un POC.
 
+### Windows: errore "Failed to resolve Python.Runtime.Loader.Initialize"
+
+Un `.exe` scaricato come zip da un browser eredita da Windows il flag
+"proviene da Internet" (Mark-of-the-Web) su tutti i file estratti; il bridge
+.NET usato da pywebview per aprire la finestra (pythonnet) può rifiutarsi di
+caricare `Python.Runtime.dll` se è marcata così. `desktop.py` prova a
+rimuovere automaticamente questo flag dalle proprie DLL al primo avvio
+(`_unblock_windows_dlls`). Se l'errore si presenta comunque, sblocca a mano
+prima di lanciare l'app — in PowerShell, dalla cartella estratta:
+
+```powershell
+Get-ChildItem -Recurse | Unblock-File
+```
+
+oppure tasto destro sullo `.zip` scaricato → Proprietà → spunta "Sblocca" →
+OK, **prima** di estrarlo.
+
 ## Struttura
 
 | file | ruolo |
