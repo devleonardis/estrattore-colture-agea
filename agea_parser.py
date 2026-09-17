@@ -50,6 +50,15 @@ MACRO_LABEL = {
     "651": "COLTIVAZIONI ARBOREE (coltura non specificata)",
 }
 
+# Codici che NON vanno mai considerati "dettaglio" di un macrouso: sono
+# colture/usi di un'altra categoria (arborea, non agricola) che possono
+# comparire nella stessa particella/anno senza sostituire il riepilogo
+# 666/651 (es. un oliveto non spiega il dettaglio del seminativo).
+NON_DETTAGLIO_CODES = {
+    "420", "410",  # arboree (olivo, vite): non sostituiscono un macro seminativo
+    "650", "660", "690", "770", "780", "788", "156", "157",  # non agricolo/altro
+}
+
 # Frasi che AGEA stampa quando un appezzamento e' oggetto di un conflitto tra
 # piu' atti (domande sovrapposte) e per questo la superficie coltivata NON
 # viene riportata nel fascicolo stesso (non e' un mancato riconoscimento del
@@ -168,6 +177,50 @@ def _looks_like_catasto_anchor(lines: list[str], i: int) -> tuple[str, str, str]
     return comune, fog, part
 
 
+def _scarta_dichiarazioni_future(res: ParseResult) -> None:
+    """Rimuove, IN PLACE, le righe di una campagna futura gia' dichiarate
+    nello stesso fascicolo insieme alla coltura corrente.
+
+    Un fascicolo puo' riportare, per la stessa particella, sia la coltura
+    della campagna in corso/chiusura (inizio a novembre dell'anno PRIMA di
+    quello del fascicolo) sia una gia' dichiarata per la campagna successiva
+    (inizio a novembre dell'anno STESSO del fascicolo o oltre) — anche con lo
+    stesso codice-coltura (es. grano su grano). Non sono due colture
+    praticate nello stesso anno: la seconda e' un impegno futuro. Quando per
+    una particella coesiste almeno una riga "corrente" (inizio < anno
+    fascicolo) con una o piu' righe "future" (inizio >= anno fascicolo), le
+    righe future vengono scartate. Se una particella ha SOLO righe "future"
+    (nessuna corrente con cui competere), vengono mantenute: e' l'unico dato
+    disponibile per quella particella in questo fascicolo.
+    """
+    if not res.anno:
+        return
+
+    by_parcel: dict[tuple[int, int], list[ColturaRecord]] = {}
+    for rec in res.records:
+        if rec.data_inizio and not rec.is_macro:
+            by_parcel.setdefault((rec.foglio, rec.particella), []).append(rec)
+
+    to_drop: list[ColturaRecord] = []
+    for group in by_parcel.values():
+        correnti = [r for r in group if int(r.data_inizio.rsplit("/", 1)[-1]) < res.anno]
+        future = [r for r in group if int(r.data_inizio.rsplit("/", 1)[-1]) >= res.anno]
+        if correnti and future:
+            to_drop.extend(future)
+
+    if not to_drop:
+        return
+    drop_ids = {id(r) for r in to_drop}
+    res.records = [r for r in res.records if id(r) not in drop_ids]
+    for r in to_drop:
+        res.warnings.append(
+            f"Foglio {r.foglio} part. {r.particella} coltura '{r.coltura_code}={r.coltura}': "
+            f"riga esclusa, e' una dichiarazione per una campagna successiva "
+            f"(inizio {r.data_inizio}) gia' presente nel fascicolo {res.file} "
+            f"insieme alla coltura dell'annualita' corrente."
+        )
+
+
 def parse_pdf(path: str) -> ParseResult:
     lines = _pdf_lines(path)
     year, year_src = _guess_year(path, lines)
@@ -259,6 +312,9 @@ def parse_pdf(path: str) -> ParseResult:
             i += 1
             continue
 
+        data_inizio = dates[0] if dates else None
+        data_fine = dates[1] if len(dates) > 1 else None
+
         res.records.append(
             ColturaRecord(
                 file=res.file,
@@ -270,13 +326,15 @@ def parse_pdf(path: str) -> ParseResult:
                 coltura_code=code,
                 coltura=desc,
                 superficie_ca=sup_ca,
-                data_inizio=dates[0] if dates else None,
-                data_fine=dates[1] if len(dates) > 1 else None,
+                data_inizio=data_inizio,
+                data_fine=data_fine,
                 progressivo=prog,
                 is_macro=is_macro,
             )
         )
         i = k + 1 if prog else i + 1
+
+    _scarta_dichiarazioni_future(res)
 
     if not res.records:
         res.warnings.append(
@@ -314,6 +372,10 @@ def aggrega(
     coltura sia righe macrouso (666/651), le macrouso vengono ignorate (doppio
     conteggio); se esistono SOLO righe macrouso, vengono tenute con etichetta
     esplicita e viene emesso un avviso.
+
+    L'anno di ogni riga e' quello dichiarato dal fascicolo di origine (vedi
+    parse_pdf); le righe di impegni pluriennali dichiarati in anticipo sono
+    gia' state escluse a monte, in parse_pdf.
     """
     warnings: list[str] = []
 
@@ -326,7 +388,10 @@ def aggrega(
     agg: dict[tuple[int, int, int], Aggregato] = {}
     for key, recs in grezzi.items():
         fg, pl, an = key
-        has_detail = any(not x.is_macro for x in recs)
+        has_detail = any(
+            not x.is_macro and x.coltura_code not in NON_DETTAGLIO_CODES
+            for x in recs
+        )
         a = Aggregato(fg, pl, an)
         for rec in recs:
             if rec.is_macro and has_detail:

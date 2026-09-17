@@ -116,14 +116,35 @@ Contenuto delle colonne `colture_<anno>`:
 
 Testato sui 30 fascicoli reali (9 aziende, campagne 2023-2026) forniti in
 `FASCICOLI AZIENDALI/` incrociati con `DD PIANO PARTICELLARE - SAN MARTINO IN
-PENSILIS (4).xlsx`: 2228 record di coltura estratti, 115 avvisi (81 per
-conflitto tra atti — vedi sopra —, 34 altro). Spot-check contro le colonne
-"atteso" già presenti in quell'Excel (es. foglio 64 part. 37: atteso "1.94
-girasole" nel 2023/2024, "2.20 grano duro" nel 2025) → **valori combacianti**
-con quanto estratto dal tool. Su 102 righe del particellare con foglio/particella
-valorizzati, 52 sono state incrociate con almeno un anno di coltura, 50 restano
-"non trovate" (particelle di proprietari/conduttori di cui non è stato fornito
-il fascicolo, o effettivamente non dichiarate).
+PENSILIS (4).xlsx`, che riporta già, per un sottoinsieme di particelle, la
+coltura "attesa" per anno (colonne aggiunte a mano dallo studio). Spot-check
+su 33 combinazioni (particella, anno) coperte da 13 particelle di 5 aziende
+diverse: **28/33 corrispondenza esatta**, 3 entro 0.03 ha di scarto
+(arrotondamento), 2 corrette ma visualizzate dopo una voce non agricola più
+estesa nella stessa cella (solo questione di ordinamento, il valore c'è).
+Su 102 righe del particellare con foglio/particella valorizzati, 52 sono
+state incrociate con almeno un anno di coltura; 50 restano "non trovate"
+(proprietari/conduttori di cui non è stato fornito il fascicolo, o
+particelle non dichiarate da nessuno dei fascicoli caricati).
+
+Durante questa validazione sono stati scoperti e corretti tre problemi reali
+(non ipotetici) nei dati AGEA:
+- **Dichiarazioni per la campagna successiva incluse nello stesso fascicolo**:
+  un fascicolo "2025" può contenere, per la stessa particella, sia la coltura
+  in corso (inizio novembre 2024) sia una già dichiarata per il 2026 (inizio
+  novembre 2025) — anche con lo stesso codice-coltura. Sommarle avrebbe
+  raddoppiato la superficie. Il tool tiene solo la dichiarazione corrente
+  quando ne esiste una in concorrenza per la stessa particella nello stesso
+  fascicolo (altrimenti tiene l'unica disponibile).
+- **Riepilogo "macrouso" soppresso per errore**: la presenza di un oliveto
+  (voce permanente, senza date) nella stessa particella non deve far scartare
+  il riepilogo `666 = SEMINATIVI` quando è l'unico dato disponibile per la
+  parte seminativa — solo un dettaglio-coltura della STESSA categoria
+  (es. grano, girasole) lo sostituisce.
+- **Conflitto tra più atti**: per le particelle con dichiarazioni sovrapposte
+  tra più atti AGEA non stampa affatto la superficie coltivata (vedi sotto) —
+  ora riconosciuto e segnalato esplicitamente invece di essere scartato come
+  "riga non riconosciuta" generica.
 
 ## Nota sui file di esempio forniti (prime prove, 1 solo fascicolo)
 
