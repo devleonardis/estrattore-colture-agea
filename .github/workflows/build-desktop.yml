@@ -22,7 +22,18 @@ jobs:
           python-version: "3.11"
       - run: pip install -r requirements.txt pywebview pyinstaller
       - run: python build_app.py
+      # su macOS PyInstaller produce sia dist/<NAME>/ (onedir) sia dist/<NAME>.app
+      # (che lo incorpora): pubblichiamo solo il .app, che e' quello utilizzabile.
+      - name: seleziona output da pubblicare
+        shell: bash
+        run: |
+          mkdir upload
+          if [ -d "dist/EstrattoreColtureAGEA.app" ]; then
+            cp -R dist/EstrattoreColtureAGEA.app upload/
+          else
+            cp -R dist/EstrattoreColtureAGEA upload/
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: EstrattoreColtureAGEA-${{ matrix.os }}
-          path: dist/*
+          path: upload/*
