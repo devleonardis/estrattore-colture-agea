@@ -32,6 +32,18 @@ def main() -> None:
         # da solo: le includiamo esplicitamente tramite hook standard.
         "--collect-all", "streamlit",
         "--hidden-import", "streamlit.web.bootstrap",
+        # app.py/agea_parser.py/matching.py/storage.py sono inclusi sopra come
+        # semplici file dati (li esegue Streamlit a runtime, non li importa
+        # desktop.py): PyInstaller non analizza i LORO import e quindi non
+        # impacchetterebbe da solo fitz/pdfplumber/openpyxl/pandas. Vanno
+        # dichiarati esplicitamente.
+        "--collect-all", "fitz",
+        "--collect-all", "pdfplumber",
+        "--collect-all", "openpyxl",
+        "--collect-all", "pandas",
+        "--hidden-import", "agea_parser",
+        "--hidden-import", "matching",
+        "--hidden-import", "storage",
         "desktop.py",
     ]
     print(">", " ".join(args))
